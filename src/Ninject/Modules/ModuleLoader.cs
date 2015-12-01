@@ -7,8 +7,10 @@
 // See the file LICENSE.txt for details.
 // 
 #endregion
+
 #if !NO_ASSEMBLY_SCANNING
 #region Using Directives
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -27,29 +29,41 @@ namespace Ninject.Modules
         /// <summary>
         /// Gets or sets the kernel into which modules will be loaded.
         /// </summary>
-        public IKernel Kernel { get; private set; }
+        public IKernelConfiguration KernelConfiguration { get; private set; }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ModuleLoader"/> class.
         /// </summary>
-        /// <param name="kernel">The kernel into which modules will be loaded.</param>
-        public ModuleLoader(IKernel kernel)
+        /// <param name="kernelConfiguration">The kernel configuration into which modules will be loaded.</param>
+        public ModuleLoader(IKernelConfiguration kernelConfiguration)
         {
-            Ensure.ArgumentNotNull(kernel, "kernel");
-            Kernel = kernel;
+            KernelConfiguration = kernelConfiguration;
         }
-
+#if !PCL
         /// <summary>
         /// Loads any modules found in the files that match the specified patterns.
         /// </summary>
         /// <param name="patterns">The patterns to search.</param>
-        public void LoadModules(IEnumerable<string> patterns)
+        public
+#if !WINRT
+ void
+#else
+ async System.Threading.Tasks.Task
+#endif
+            LoadModules(IEnumerable<string> patterns)
         {
-            var plugins = Kernel.Components.GetAll<IModuleLoaderPlugin>();
+#if PCL
+            throw new NotImplementedException();
+#else
+            var plugins = KernelConfiguration.Components.GetAll<IModuleLoaderPlugin>();
 
             var fileGroups = patterns
+#if !WINRT
                 .SelectMany(pattern => GetFilesMatchingPattern(pattern))
                 .GroupBy(filename => Path.GetExtension(filename).ToLowerInvariant());
+#else
+                .GroupBy(filename => GetExtension(filename).ToLowerInvariant());
+#endif          
 
             foreach (var fileGroup in fileGroups)
             {
@@ -57,10 +71,24 @@ namespace Ninject.Modules
                 IModuleLoaderPlugin plugin = plugins.Where(p => p.SupportedExtensions.Contains(extension)).FirstOrDefault();
 
                 if (plugin != null)
+#if WINRT
+                    await 
+#endif               
                     plugin.LoadModules(fileGroup);
             }
+#endif
         }
+#endif
 
+#if !PCL
+#if WINRT
+        private static string GetExtension(string filename)
+        {
+            var i = filename.LastIndexOf('.');
+            return filename.Substring(i);
+        }
+#endif
+#if !WINRT
         private static IEnumerable<string> GetFilesMatchingPattern(string pattern)
         {
             return NormalizePaths(Path.GetDirectoryName(pattern))
@@ -76,6 +104,9 @@ namespace Ninject.Modules
 
         private static IEnumerable<string> GetBaseDirectories()
         {
+#if ANDROID
+            return new[] { Android.App.Application.Context.FilesDir.AbsolutePath };
+#else
             var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             var searchPath = AppDomain.CurrentDomain.RelativeSearchPath;
 
@@ -83,7 +114,10 @@ namespace Ninject.Modules
                 ? new[] {baseDirectory} 
                 : searchPath.Split(new[] {Path.PathSeparator}, StringSplitOptions.RemoveEmptyEntries)
                     .Select(path => Path.Combine(baseDirectory, path));
+#endif
         }
+#endif
+#endif
     }
 }
 #endif //!NO_ASSEMBLY_SCANNING

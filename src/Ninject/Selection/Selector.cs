@@ -26,23 +26,6 @@ namespace Ninject.Selection
     /// </summary>
     public class Selector : NinjectComponent, ISelector
     {
-        private const BindingFlags DefaultFlags = BindingFlags.Public | BindingFlags.Instance;
-
-        /// <summary>
-        /// Gets the default binding flags.
-        /// </summary>
-        protected virtual BindingFlags Flags
-        {
-            get
-            {
-                #if !NO_LCG && !SILVERLIGHT
-                return Settings.InjectNonPublic ? (DefaultFlags | BindingFlags.NonPublic) : DefaultFlags;
-                #else
-                return DefaultFlags;
-                #endif
-            }
-        }
-
         /// <summary>
         /// Gets or sets the constructor scorer.
         /// </summary>
@@ -60,9 +43,6 @@ namespace Ninject.Selection
         /// <param name="injectionHeuristics">The injection heuristics.</param>
         public Selector(IConstructorScorer constructorScorer, IEnumerable<IInjectionHeuristic> injectionHeuristics)
         {
-            Ensure.ArgumentNotNull(constructorScorer, "constructorScorer");
-            Ensure.ArgumentNotNull(injectionHeuristics, "injectionHeuristics");
-
             ConstructorScorer = constructorScorer;
             InjectionHeuristics = injectionHeuristics.ToList();
         }
@@ -74,10 +54,11 @@ namespace Ninject.Selection
         /// <returns>The selected constructor, or <see langword="null"/> if none were available.</returns>
         public  virtual IEnumerable<ConstructorInfo> SelectConstructorsForInjection(Type type)
         {
-            Ensure.ArgumentNotNull(type, "type");
-
-            var constructors = type.GetConstructors( Flags );
-            return constructors.Length == 0 ? null : constructors;
+            if (type.GetTypeInfo().IsSubclassOf(typeof(MulticastDelegate)))
+                return null;
+            var tInfo = type.GetTypeInfo();
+            var constructors = tInfo.DeclaredConstructors.FilterPublic(Settings.InjectNonPublic);
+            return constructors.Any() ? constructors : null;
         }
 
         /// <summary>
@@ -87,28 +68,28 @@ namespace Ninject.Selection
         /// <returns>A series of the selected properties.</returns>
         public virtual IEnumerable<PropertyInfo> SelectPropertiesForInjection(Type type)
         {
-            Ensure.ArgumentNotNull(type, "type");
             List<PropertyInfo> properties = new List<PropertyInfo>();
+            
             properties.AddRange(
-                type.GetProperties(this.Flags)
-                       .Select(p => p.GetPropertyFromDeclaredType(p, this.Flags))
-                       .Where(p => this.InjectionHeuristics.Any(h => h.ShouldInject(p))));
-#if !SILVERLIGHT
+                type.GetRuntimeProperties().FilterPublic(Settings.InjectNonPublic)
+                    .Select(p => p.GetPropertyFromDeclaredType(p))
+                    .Where(p => this.InjectionHeuristics.Any(h => p != null && h.ShouldInject(p))));
+
+
             if (this.Settings.InjectParentPrivateProperties)
             {
-                for (Type parentType = type.BaseType; parentType != null; parentType = parentType.BaseType)
+                for (Type parentType = type.GetTypeInfo().BaseType; parentType != null; parentType = parentType.GetTypeInfo().BaseType)
                 {
-                    properties.AddRange(this.GetPrivateProperties(type.BaseType));
+                    properties.AddRange(this.GetPrivateProperties(type.GetTypeInfo().BaseType));
                 }
             }
-#endif
-
+            
             return properties;
         }
-
+        
         private IEnumerable<PropertyInfo> GetPrivateProperties(Type type)
         {
-            return type.GetProperties(this.Flags).Where(p => p.DeclaringType == type && p.IsPrivate())
+            return type.GetRuntimeProperties().FilterPublic(Settings.InjectNonPublic).Where(p => p.DeclaringType == type && p.IsPrivate())
                 .Where(p => this.InjectionHeuristics.Any(h => h.ShouldInject(p)));
         }
 
@@ -119,8 +100,31 @@ namespace Ninject.Selection
         /// <returns>A series of the selected methods.</returns>
         public virtual IEnumerable<MethodInfo> SelectMethodsForInjection(Type type)
         {
-            Ensure.ArgumentNotNull(type, "type");
-            return type.GetMethods(Flags).Where(m => InjectionHeuristics.Any(h => h.ShouldInject(m)));
+            return type.GetRuntimeMethods().FilterPublic(Settings.InjectNonPublic).Where(m => InjectionHeuristics.Any(h => h.ShouldInject(m)));
         }
     }
+}
+
+namespace Ninject
+{
+
+    internal static class WinRTFilters
+    {
+        public static IEnumerable<T> FilterPublic<T>(this IEnumerable<T> input, bool nonPublic)
+            where T : MethodBase
+        {
+            return input.Where(m => !m.IsStatic && (nonPublic || m.IsPublic));
+        }
+
+        public static IEnumerable<PropertyInfo> FilterPublic(this IEnumerable<PropertyInfo> input, bool nonPublic)
+       {
+           var toReturn = from pi in input
+                          let method = pi.SetMethod ?? pi.GetMethod
+                          where !method.IsStatic && (nonPublic || method.IsPublic)
+                          select pi;
+
+           return toReturn;
+        }
+    }
+
 }

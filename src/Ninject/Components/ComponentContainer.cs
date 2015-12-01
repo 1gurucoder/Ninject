@@ -30,9 +30,9 @@ namespace Ninject.Components
         private readonly HashSet<KeyValuePair<Type, Type>> transients = new HashSet<KeyValuePair<Type, Type>>();
 
         /// <summary>
-        /// Gets or sets the kernel that owns the component container.
+        /// Gets or sets the kernel configuration
         /// </summary>
-        public IKernel Kernel { get; set; }
+        public IKernelConfiguration KernelConfiguration { get; set; }
 
         /// <summary>
         /// Releases resources held by the object.
@@ -101,7 +101,7 @@ namespace Ninject.Components
 
             _instances.Remove(implementation);
 
-            _mappings[typeof(T)].Remove(typeof(TImplementation));
+            _mappings.Remove(typeof(T), typeof(TImplementation));
         }
         /// <summary>
         /// Removes all registrations for the specified component.
@@ -109,8 +109,6 @@ namespace Ninject.Components
         /// <param name="component">The component type.</param>
         public void RemoveAll(Type component)
         {
-            Ensure.ArgumentNotNull(component, "component");
-
             foreach (Type implementation in _mappings[component])
             {
                 if (_instances.ContainsKey(implementation))
@@ -151,25 +149,17 @@ namespace Ninject.Components
         /// <returns>The instance of the component.</returns>
         public object Get(Type component)
         {
-            Ensure.ArgumentNotNull(component, "component");
+            if (component == typeof(IKernelConfiguration))
+                return KernelConfiguration;
 
-            if (component == typeof(IKernel))
-                return Kernel;
-
-            if (component.IsGenericType)
+            if (component.GetTypeInfo().IsGenericType)
             {
                 Type gtd = component.GetGenericTypeDefinition();
-                Type argument = component.GetGenericArguments()[0];
+                Type argument = component.GetTypeInfo().GenericTypeArguments[0];
 
-#if WINDOWS_PHONE
-                Type discreteGenericType =
-                    typeof (IEnumerable<>).MakeGenericType(argument);
-                if (gtd.IsInterface && discreteGenericType.IsAssignableFrom(component))
+                var info = gtd.GetTypeInfo();
+                if(info.IsInterface && typeof(IEnumerable<>).GetTypeInfo().IsAssignableFrom(info))
                     return GetAll(argument).CastSlow(argument);
-#else
-                if (gtd.IsInterface && typeof (IEnumerable<>).IsAssignableFrom(gtd))
-                    return GetAll(argument).CastSlow(argument);
-#endif
             }
             Type implementation = _mappings[component].FirstOrDefault();
 
@@ -186,8 +176,6 @@ namespace Ninject.Components
         /// <returns>A series of instances of the specified component.</returns>
         public IEnumerable<object> GetAll(Type component)
         {
-            Ensure.ArgumentNotNull(component, "component");
-
             return _mappings[component]
                 .Select(implementation => ResolveInstance(component, implementation));
         }
@@ -206,7 +194,9 @@ namespace Ninject.Components
             try
             {
                 var instance = constructor.Invoke(arguments) as INinjectComponent;
-                instance.Settings = Kernel.Settings;
+
+                // Todo: Clone Settings during kernel build (is this still important? Can clone settings now)
+                instance.Settings = KernelConfiguration.Settings.Clone();
 
                 if (!this.transients.Contains(new KeyValuePair<Type, Type>(component, implementation)))
                 {
@@ -224,7 +214,9 @@ namespace Ninject.Components
 
         private static ConstructorInfo SelectConstructor(Type component, Type implementation)
         {
-            var constructor = implementation.GetConstructors().OrderByDescending(c => c.GetParameters().Length).FirstOrDefault();
+            var constructor =
+                implementation.GetTypeInfo().DeclaredConstructors.Where(c => c.IsPublic && !c.IsStatic).OrderByDescending(c => c.GetParameters().Length).
+                    FirstOrDefault();
 
             if (constructor == null)
                 throw new InvalidOperationException(ExceptionFormatter.NoConstructorsAvailableForComponent(component, implementation));
@@ -232,7 +224,7 @@ namespace Ninject.Components
             return constructor;
         }
 
-#if SILVERLIGHT_30 || SILVERLIGHT_20 || WINDOWS_PHONE || NETCF_35 || MONO
+#if MONO
         private class HashSet<T>
         {
             private IDictionary<T, bool> data = new Dictionary<T,bool>();

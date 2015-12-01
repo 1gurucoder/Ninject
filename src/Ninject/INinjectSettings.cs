@@ -47,15 +47,15 @@ namespace Ninject
         string[] ExtensionSearchPatterns { get; }
         #endif //!NO_ASSEMBLY_SCANNING
 
-        #if !NO_LCG
+   
         /// <summary>
         /// Gets a value indicating whether Ninject should use reflection-based injection instead of
         /// the (usually faster) lightweight code generation system.
         /// </summary>
         bool UseReflectionBasedInjection { get; }
-        #endif //!NO_LCG
 
-        #if !SILVERLIGHT
+
+  
         /// <summary>
         /// Gets a value indicating whether Ninject should inject non public members.
         /// </summary>
@@ -69,7 +69,7 @@ namespace Ninject
         /// to use this feature and use constructor injection instead.
         /// </remarks>
         bool InjectParentPrivateProperties { get; set; }
-        #endif //!SILVERLIGHT
+
 
         /// <summary>
         /// Gets or sets a value indicating whether the activation cache is disabled.
@@ -105,5 +105,11 @@ namespace Ninject
         /// <param name="key">The setting's key.</param>
         /// <param name="value">The setting's value.</param>
         void Set(string key, object value);
+
+        /// <summary>
+        /// Clones the ninject settings into a new instance
+        /// </summary>
+        /// <returns>A new instance of the ninject settings</returns>
+        INinjectSettings Clone();
     }
 }

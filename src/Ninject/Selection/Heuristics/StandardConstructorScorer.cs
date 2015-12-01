@@ -26,7 +26,7 @@ namespace Ninject.Selection.Heuristics
     using System;
     using System.Collections;
     using System.Linq;
-
+    using System.Reflection;
     using Ninject.Activation;
     using Ninject.Components;
     using Ninject.Infrastructure;
@@ -100,7 +100,7 @@ namespace Ninject.Selection.Heuristics
         /// <param name="context">The context.</param>
         /// <param name="target">The target.</param>
         /// <returns>Whether a binding exists for the target in the given context.</returns>
-        protected virtual bool BindingExists(IKernel kernel, IContext context, ITarget target)
+        protected virtual bool BindingExists(IReadonlyKernel kernel, IContext context, ITarget target)
         {
             var targetType = GetTargetType(target);
             return kernel.GetBindings(targetType).Any(b => !b.IsImplicit)
@@ -110,14 +110,19 @@ namespace Ninject.Selection.Heuristics
         private Type GetTargetType(ITarget target)
         {
             var targetType = target.Type;
+            
             if (targetType.IsArray)
             {
                 targetType = targetType.GetElementType();
             }
 
-            if (targetType.IsGenericType && targetType.GetInterfaces().Any(type => type == typeof(IEnumerable)))
+            var typeInfo = targetType.GetTypeInfo();
+            if (typeInfo.IsGenericType)
             {
-                targetType = targetType.GetGenericArguments()[0];
+                if(typeInfo.ImplementedInterfaces.Any(type => type == typeof(IEnumerable)))
+                {
+                    targetType = typeInfo.GenericTypeArguments[0];
+                }
             }
 
             return targetType;

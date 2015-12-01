@@ -28,20 +28,6 @@ namespace Ninject.Activation.Strategies
     /// </summary>
     public class PropertyInjectionStrategy : ActivationStrategy
     {
-        private const BindingFlags DefaultFlags = BindingFlags.Public | BindingFlags.Instance;
-
-        private BindingFlags Flags
-        {
-            get
-            {
-                #if !NO_LCG && !SILVERLIGHT
-                return Settings.InjectNonPublic ? (DefaultFlags | BindingFlags.NonPublic) : DefaultFlags;
-                #else
-                return DefaultFlags;
-                #endif
-            }
-        }
-
         /// <summary>
         /// Gets the injector factory component.
         /// </summary>
@@ -64,9 +50,6 @@ namespace Ninject.Activation.Strategies
         /// <param name="reference">A reference to the instance being activated.</param>
         public override void Activate(IContext context, InstanceReference reference)
         {
-            Ensure.ArgumentNotNull(context, "context");
-            Ensure.ArgumentNotNull(reference, "reference");
-
             var propertyValues = context.Parameters.OfType<IPropertyValue>().ToList();
 
             foreach (var directive in context.Plan.GetAll<PropertyInjectionDirective>())
@@ -78,6 +61,8 @@ namespace Ninject.Activation.Strategies
             this.AssignPropertyOverrides(context, reference, propertyValues);
         }
 
+
+
         /// <summary>
         /// Applies user supplied override values to instance properties.
         /// </summary>
@@ -86,7 +71,8 @@ namespace Ninject.Activation.Strategies
         /// <param name="propertyValues">The parameter override value accessors.</param>
         private void AssignPropertyOverrides(IContext context, InstanceReference reference, IList<IPropertyValue> propertyValues)
         {
-            var properties = reference.Instance.GetType().GetProperties(this.Flags);
+            var properties = reference.Instance.GetType().GetRuntimeProperties().FilterPublic(Settings.InjectNonPublic);
+
             foreach (var propertyValue in propertyValues)
             {
                 string propertyName = propertyValue.Name;
@@ -112,9 +98,6 @@ namespace Ninject.Activation.Strategies
         /// <returns>The value to inject into the specified target.</returns>
         private object GetValue(IContext context, ITarget target, IEnumerable<IPropertyValue> allPropertyValues)
         {
-            Ensure.ArgumentNotNull(context, "context");
-            Ensure.ArgumentNotNull(target, "target");
-
             var parameter = allPropertyValues.SingleOrDefault(p => p.Name == target.Name);
             return parameter != null ? parameter.GetValue(context, target) : target.ResolveWithin(context);
         }

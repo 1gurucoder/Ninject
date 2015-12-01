@@ -69,26 +69,20 @@ namespace Ninject.Tests.Integration
         [Fact]
         public void GivenBothImplicitAndExplicitConditionalBindings_ThenExplicitBindingWillResolve()
         {
-            IWeapon weapon = kernel.Get<Sword>();
-            // make the binding conditional
-            kernel.GetBindings(typeof (Sword)).First().Condition = b => true;
-            weapon.Should().BeOfType<Sword>();
+            kernel.Bind<Sword>().ToSelf().When(ctx => true).BindingConfiguration.IsImplicit = true;
+            kernel.Bind<Sword>().To<ShortSword>().When(ctx => true);
 
-            kernel.Bind<Sword>().To<ShortSword>().When(_ => true);
-            weapon = kernel.Get<Sword>();
+            var weapon = kernel.Get<Sword>();
             weapon.Should().BeOfType<ShortSword>();
         }
 
         [Fact]
         public void GivenADefaultAndAConditionalImplicitBinding_ThenConditionalBindingWillResolve()
         {
-            IWeapon weapon = kernel.Get<Sword>();
-            // make the binding conditional
-            kernel.GetBindings(typeof (Sword)).First().Condition = b => true;
-            weapon.Should().BeOfType<Sword>();
-
+            kernel.Bind<Sword>().ToSelf().When(ctx => true).BindingConfiguration.IsImplicit = true;
             kernel.Bind<Sword>().To<ShortSword>();
-            weapon = kernel.Get<Sword>();
+
+            var weapon = kernel.Get<Sword>();
             weapon.Should().BeOfType<Sword>();
         }
 
@@ -358,6 +352,39 @@ namespace Ninject.Tests.Integration
             barack.Warrior.Weapon.Should().BeOfType<Dagger>();
         }
 
+        [Fact]
+        public void WhenMemberHasDoesNotConsiderAttributeOnTarget()
+        {
+            kernel.Bind<Knight>().ToSelf();
+            kernel.Bind<IWeapon>().To<Sword>();
+            kernel.Bind<IWeapon>().To<ShortSword>().WhenMemberHas<WeakAttribute>();
+
+            var knight = kernel.Get<Knight>();
+            knight.Weapon.Should().BeOfType<Sword>();
+        }
+
+        [Fact]
+        public void WhenMemberHasDoesConsiderAttributeOnMember()
+        {
+            kernel.Bind<Knight>().ToSelf();
+            kernel.Bind<IWeapon>().To<Sword>().WhenMemberHas<StrongAttribute>();
+            kernel.Bind<IWeapon>().To<ShortSword>();
+
+            var knight = kernel.Get<Knight>();
+            knight.Weapon.Should().BeOfType<Sword>();
+        }
+
+        [Fact]
+        public void WhenTargetHasDoesConsiderAttributeOnTarget()
+        {
+            kernel.Bind<Knight>().ToSelf();
+            kernel.Bind<IWeapon>().To<Sword>();
+            kernel.Bind<IWeapon>().To<ShortSword>().WhenTargetHas<WeakAttribute>();
+
+            var knight = kernel.Get<Knight>();
+            knight.Weapon.Should().BeOfType<ShortSword>();
+        }
+
         public interface IGenericService<T>
         {
         }
@@ -396,6 +423,17 @@ namespace Ninject.Tests.Integration
             }
 
             public IWarrior Warrior { get; protected set; }
+        }
+
+        public class Knight
+        {
+            public IWeapon Weapon { get; private set; }
+
+            [Strong]
+            public Knight([Weak] IWeapon weapon)
+            {
+                this.Weapon = weapon;
+            }
         }
     }
 }

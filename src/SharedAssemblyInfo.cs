@@ -14,9 +14,11 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyProductAttribute("Ninject: Lightweight dependency injection for .NET")]
 [assembly: AssemblyCompanyAttribute("Ninject Project Contributors")]
-[assembly: AssemblyCopyrightAttribute("Copyright © 2007-2012 Ninject Project Contributors and contributors")]
-[assembly: AssemblyVersionAttribute("3.0.0.0")]
-[assembly: AssemblyFileVersionAttribute("3.0.2.65")]
+[assembly: AssemblyCopyrightAttribute("Copyright © 2007-2014 Ninject Project Contributors and contributors")]
+[assembly: AssemblyVersionAttribute("4.0.0.0")]
+[assembly: AssemblyFileVersionAttribute("4.0.0.6")]
+#if !PCL
 [assembly: ComVisibleAttribute(false)]
+#endif
 [assembly: CLSCompliantAttribute(true)]
 

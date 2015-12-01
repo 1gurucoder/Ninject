@@ -21,6 +21,8 @@
 // </copyright>
 //-------------------------------------------------------------------------------
 
+using System;
+
 #if !NO_ASSEMBLY_SCANNING
 namespace Ninject.Modules
 {
@@ -29,7 +31,6 @@ namespace Ninject.Modules
     using System.Reflection;
 
     using Ninject.Components;
-    using Ninject.Infrastructure;
     using Ninject.Infrastructure.Language;
     
     /// <summary>
@@ -45,24 +46,23 @@ namespace Ninject.Modules
         /// <summary>
         /// The file extensions that are supported.
         /// </summary>
-        private static readonly string[] Extensions = new[] { ".dll" };
+        private static readonly string[] Extensions = { ".dll" };
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CompiledModuleLoaderPlugin"/> class.
         /// </summary>
-        /// <param name="kernel">The kernel into which modules will be loaded.</param>
+        /// <param name="kernelConfiguration">The kernel configuration into which modules will be loaded.</param>
         /// <param name="assemblyNameRetriever">The assembly name retriever.</param>
-        public CompiledModuleLoaderPlugin(IKernel kernel, IAssemblyNameRetriever assemblyNameRetriever)
+        public CompiledModuleLoaderPlugin(IKernelConfiguration kernelConfiguration, IAssemblyNameRetriever assemblyNameRetriever)
         {
-            Ensure.ArgumentNotNull(kernel, "kernel");
-            this.Kernel = kernel;
+            this.KernelConfiguration = kernelConfiguration;
             this.assemblyNameRetriever = assemblyNameRetriever;
         }
 
         /// <summary>
-        /// Gets the kernel into which modules will be loaded.
+        /// Gets the kernel configuration into which modules will be loaded.
         /// </summary>
-        public IKernel Kernel { get; private set; }
+        public IKernelConfiguration KernelConfiguration { get; private set; }
 
         /// <summary>
         /// Gets the file extensions that the plugin understands how to load.
@@ -76,10 +76,26 @@ namespace Ninject.Modules
         /// Loads modules from the specified files.
         /// </summary>
         /// <param name="filenames">The names of the files to load modules from.</param>
-        public void LoadModules(IEnumerable<string> filenames)
+        public
+#if !WINRT
+        void 
+#else
+ async System.Threading.Tasks.Task
+#endif
+            LoadModules(IEnumerable<string> filenames)
         {
-            var assembliesWithModules = this.assemblyNameRetriever.GetAssemblyNames(filenames, asm => asm.HasNinjectModules());
-            this.Kernel.Load(assembliesWithModules.Select(asm => Assembly.Load(asm)));
+#if PCL
+            throw new NotImplementedException();
+#else
+            var assembliesWithModules = 
+#if WINRT
+                await 
+#endif
+            this.assemblyNameRetriever.GetAssemblyNames(filenames, asm => asm.HasNinjectModules());
+
+
+            this.KernelConfiguration.Load(assembliesWithModules.Select(asm => Assembly.Load(asm)));
+#endif
         }
     }
 }

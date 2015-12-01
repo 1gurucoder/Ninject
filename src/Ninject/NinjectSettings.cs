@@ -22,7 +22,34 @@ namespace Ninject
     /// </summary>
     public class NinjectSettings : INinjectSettings
     {
-        private readonly Dictionary<string, object> _values = new Dictionary<string, object>();
+        private readonly IDictionary<string, object> values;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NinjectSettings"/> class.
+        /// </summary>
+        public NinjectSettings() : this(new Dictionary<string, object>())
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NinjectSettings"/> class.
+        /// </summary>
+        /// <param name="values">Dependency injection for the settings values</param>
+        private NinjectSettings(IDictionary<string, object> values)
+        {
+            this.values = values;
+
+#if SILVERLIGHT
+            InjectNonPublic = false;
+            InjectParentPrivateProperties = false;
+
+#endif
+
+#if NO_LCG
+            UseReflectionBasedInjection = false;
+#endif
+        }
+
 
         /// <summary>
         /// Gets or sets the attribute that indicates that a member should be injected.
@@ -51,7 +78,7 @@ namespace Ninject
             set { Set("DefaultScopeCallback", value); }
         }
 
-        #if !NO_ASSEMBLY_SCANNING
+
         /// <summary>
         /// Gets or sets a value indicating whether the kernel should automatically load extensions at startup.
         /// </summary>
@@ -69,9 +96,7 @@ namespace Ninject
             get { return Get("ExtensionSearchPatterns", new [] { "Ninject.Extensions.*.dll", "Ninject.Web*.dll" }); }
             set { Set("ExtensionSearchPatterns", value); }
         }
-        #endif //!NO_ASSEMBLY_SCANNING
 
-        #if !NO_LCG
         /// <summary>
         /// Gets a value indicating whether Ninject should use reflection-based injection instead of
         /// the (usually faster) lightweight code generation system.
@@ -81,9 +106,7 @@ namespace Ninject
             get { return Get("UseReflectionBasedInjection", false); }
             set { Set("UseReflectionBasedInjection", value); }
         }
-        #endif //!NO_LCG
-
-        #if !SILVERLIGHT
+        
         /// <summary>
         /// Gets a value indicating whether Ninject should inject non public members.
         /// </summary>
@@ -105,7 +128,6 @@ namespace Ninject
             get { return this.Get("InjectParentPrivateProperties", false); }
             set { this.Set("InjectParentPrivateProperties", value); }
         }
-        #endif //!SILVERLIGHT
 
         /// <summary>
         /// Gets or sets a value indicating whether the activation cache is disabled.
@@ -146,7 +168,7 @@ namespace Ninject
         public T Get<T>(string key, T defaultValue)
         {
             object value;
-            return _values.TryGetValue(key, out value) ? (T)value : defaultValue;
+            return this.values.TryGetValue(key, out value) ? (T)value : defaultValue;
         }
 
         /// <summary>
@@ -156,7 +178,17 @@ namespace Ninject
         /// <param name="value">The setting's value.</param>
         public void Set(string key, object value)
         {
-            _values[key] = value;
+            this.values[key] = value;
+        }
+
+        /// <summary>
+        /// Clones the ninject settings into a new instance
+        /// </summary>
+        /// <returns>A new instance of the ninject settings</returns>
+        public INinjectSettings Clone()
+        {
+            var clonedValues = new Dictionary<string, object>(this.values);
+            return new NinjectSettings(clonedValues);
         }
     }
 }
